@@ -1,8 +1,18 @@
 {
   "name": "satyam-mods",
-  "owner": { "name": "Satyam" },
+  "owner": {
+    "name": "Satyam"
+  },
   "plugins": [
-    { "name": "blast-guard", "source": "./blast-guard", "description": "Holds risky shell commands for a yes/no with a dry-run report, blocks Python heredocs with backslash escapes, caps concurrent subagents at 4." },
-    { "name": "cache-tax", "source": "./cache-tax", "description": "Prompt-cache hit rate, context size and TTL in the status line; prices every cache rebuild; /cache-tax summary." }
+    {
+      "name": "blast-guard",
+      "source": "./blast-guard",
+      "description": "Holds risky shell commands for a yes/no with a dry-run report, blocks Python heredocs with backslash escapes, caps concurrent subagents at 4."
+    },
+    {
+      "name": "cache-meter",
+      "source": "./cache-meter",
+      "description": "Prompt-cache hit rate, context size and TTL in the status line; prices every cache rebuild; /cache-meter summary."
+    }
   ]
 }

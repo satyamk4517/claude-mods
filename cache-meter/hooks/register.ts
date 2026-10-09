@@ -59,7 +59,7 @@ export const register: Register = on => {
   }
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'cache-tax', description: 'Prompt-cache spend for this session: hit rate, cost, and every rebuild with what coincided with it.' })
+    await $.command.register({ name: 'cache-meter', description: 'Prompt-cache spend for this session: hit rate, cost, and every rebuild with what coincided with it.' })
     $.clock.every(60_000, () => $.ui.status(statusText(Date.now())))
     return next(e)
   })
@@ -115,8 +115,8 @@ export const register: Register = on => {
     return res
   })
 
-  on('command.run', { command: 'cache-tax' }, async () => {
-    if (total.steps === 0) return { text: 'cache-tax: no model requests yet this session.' }
+  on('command.run', { command: 'cache-meter' }, async () => {
+    if (total.steps === 0) return { text: 'cache-meter: no model requests yet this session.' }
     const lines = [
       `Requests: ${total.steps} · cache hit ${hitRate()}% · context now ${k(mainContext)}`,
       `Tokens: ${k(total.read)} read from cache, ${k(total.write)} written, ${k(total.input)} uncached, ${k(total.output)} output`,

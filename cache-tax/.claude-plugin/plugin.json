@@ -1,5 +1,0 @@
-{
-  "name": "cache-tax",
-  "version": "0.1.0",
-  "description": "Status line with prompt-cache hit rate, context size and TTL countdown; toasts and prices every cache rebuild and names what coincided with it; /cache-tax summary."
-}
