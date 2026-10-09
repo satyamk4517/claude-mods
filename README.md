@@ -6,6 +6,7 @@ Two [Claude Code mods](https://code.claude.com/docs/en/plugins/mods) — plugins
 |---|---|
 | **blast-guard** | Holds risky shell commands (`rm -r`, `Remove-Item -Recurse`, force push, `git reset --hard`, `git clean -f`, `git checkout .`, `git branch -D`) and asks **Cancel / Run it**, with a dry-run report of what would be lost. Blocks Python heredocs carrying `\1` / `\x..` escapes (they write control characters into files). Refuses a 5th concurrent subagent. |
 | **cache-tax** | Status line: prompt-cache hit rate, context size, 1-hour TTL countdown. A toast whenever a request rebuilds the cache instead of reading it, with the token count, the extra cost, and what changed just before (model switch, effort change, idle past the TTL, or a prompt-prefix change). `/cache-tax` prints the session summary. |
+| **savvy-progress** | A band above the prompt: a progress bar built from Claude's todo/task list with the step it is on now; live turn stats (elapsed, requests, tool calls, edits); and a stall alarm when the same command or file fails twice, or one file is edited 4+ times in a turn. `/savvy` hides or shows it. |
 
 ## Install
 
@@ -14,6 +15,7 @@ In a Claude Code terminal session:
 ```
 /plugin install blast-guard --marketplace satyamk4517/claude-mods
 /plugin install cache-tax --marketplace satyamk4517/claude-mods
+/plugin install savvy-progress --marketplace satyamk4517/claude-mods
 ```
 
 Answer `y` to add the marketplace, then pick a scope (user = every project).

@@ -1,0 +1,6 @@
+{
+  "name": "savvy-progress",
+  "version": "0.1.0",
+  "description": "Band above the prompt: plan progress from Claude's todo/task list, live turn stats, and a stall alarm after two failed attempts at the same thing.",
+  "types": "./types/index.d.ts"
+}
