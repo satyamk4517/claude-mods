@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { AgentInfo, Register, SessionUsage } from 'claude-code'
 
 import type { AgentRow, UsageSnapshot, View } from '../types'
-import { bar, limitLong, limitName, money, pctColor, tokens, until } from './format'
+import { cardAlt, isLive, limitLong, limitName, money, pctColor, smoothBar, svgCard, tokens, until } from './format'
 
 const usage = atom({ plugin: 'usage-bar', key: 'usage' } as const, null)
 const agents = atom({ plugin: 'usage-bar', key: 'agents' } as const, [])
@@ -24,6 +24,8 @@ const rowsOf = (list: AgentInfo[], before: Set<string>): AgentRow[] =>
   list
     .filter(a => a.type !== 'teammate' && (LIVE.has(a.status) || !before.has(a.id)))
     .map(a => ({ id: a.id, desc: a.description, type: a.type, status: a.status }))
+
+const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 
 export const register: Register = on => {
   let before = new Set<string>()
@@ -104,76 +106,102 @@ export const register: Register = on => {
     if (e.props.hasSurvey || v.isHidden || (u === null && list.length === 0)) return next(e)
 
     const below = await next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const ui = $.ui.resolve(e)
+    const { Box, Text, Button } = ui
     const t = (await read($, now)) || Date.now()
-    const cells = (e.props.bodyColumns ?? 100) < 100 ? 5 : 10
 
-    const usageRow = u && (
-      <Box key="usage-row">
-        <Text dimColor>ctx </Text>
-        <Text color={pctColor(u.ctxPct)}>{bar(u.ctxPct, cells)}</Text>
-        <Text> {u.ctxPct}% {tokens(u.ctxTokens)}/{tokens(u.ctxWindow)}</Text>
-        {u.limits.map(l => (
-          <Text key={'lim-' + l.kind}>
-            <Text dimColor>   {limitName(l.kind)} </Text>
-            <Text color={pctColor(l.pct)}>{bar(l.pct, cells / 2)}</Text>
-            <Text> {Math.round(l.pct)}%</Text>
-            <Text dimColor> ↻{until(l.resetsAt, t)}</Text>
-          </Text>
-        ))}
-        {u.usd !== null && <Text dimColor>   {money(u.usd)}</Text>}
-        <Text> </Text>
-        <Button key="details" label={v.isExpanded ? 'less' : 'details'} plain onPress={async () => {
-          await update($, view, x => ({ ...x, isExpanded: !x.isExpanded }))
-          await $.store.set('view', await read($, view))
-        }} />
-        <Text> </Text>
-        <Button key="hide" label="hide" plain onPress={async () => {
-          await update($, view, x => ({ ...x, isHidden: true }))
-          await $.store.set('view', await read($, view))
-        }} />
+    const toggleDetails = async () => {
+      await update($, view, x => ({ ...x, isExpanded: !x.isExpanded }))
+      await $.store.set('view', await read($, view))
+    }
+    const hide = async () => {
+      await update($, view, x => ({ ...x, isHidden: true }))
+      await $.store.set('view', await read($, view))
+    }
+    const openPanel = async () => {
+      try {
+        await $.command.run({ command: 'agents-info', args: '' })
+      } catch {
+        $.ui.toast('usage-bar: the agents panel needs the savvy-progress mod.')
+      }
+    }
+
+    const buttons = (
+      <Box key="buttons">
+        <Button key="details" label={v.isExpanded ? 'less' : 'details'} plain onPress={toggleDetails} />
+        <Text>  </Text>
+        {list.length > 0 && <Button key="panel" label="agents panel" plain onPress={openPanel} />}
+        {list.length > 0 && <Text>  </Text>}
+        <Button key="hide" label="hide" plain onPress={hide} />
       </Box>
     )
 
     const details = u && v.isExpanded && (
       <Box key="details-rows" flexDirection="column">
         <Text dimColor>
-          {'  '}Context: {u.ctxTokens.toLocaleString()} of {u.ctxWindow.toLocaleString()} tokens used, {tokens(Math.max(0, u.ctxWindow - u.ctxTokens))} left.
+          Context: {u.ctxTokens.toLocaleString()} of {u.ctxWindow.toLocaleString()} tokens used, {tokens(Math.max(0, u.ctxWindow - u.ctxTokens))} left.
         </Text>
         {u.limits.map(l => (
           <Text key={'det-' + l.kind} dimColor>
-            {'  '}{limitLong(l.kind)}: {Math.round(l.pct)}% used, {Math.max(0, 100 - Math.round(l.pct))}% left, resets {until(l.resetsAt, t) || 'unknown'}.
+            {limitLong(l.kind)}: {Math.round(l.pct)}% used, {Math.max(0, 100 - Math.round(l.pct))}% left, resets {until(l.resetsAt, t) || 'unknown'}.
           </Text>
         ))}
-        {u.limits.length === 0 && <Text dimColor>{'  '}No plan limits reported yet (they arrive with the next reply, or the account has none).</Text>}
-        {u.usd !== null && <Text dimColor>{'  '}Session cost as /cost totals it: {money(u.usd)} (API-equivalent on a subscription).</Text>}
+        {u.limits.length === 0 && <Text dimColor>No plan limits reported yet (they arrive with the next reply, or the account has none).</Text>}
+        {u.usd !== null && <Text dimColor>Session cost as /cost totals it: {money(u.usd)} (API-equivalent on a subscription).</Text>}
       </Box>
     )
 
-    const done = list.filter(a => !LIVE.has(a.status)).length
-    const live = list.filter(a => LIVE.has(a.status))
-    const agentRow = list.length > 0 && (
-      <Box key="agents-row">
-        <Text dimColor>agents </Text>
-        <Text color={live.length ? 'yellow' : 'green'}>{bar(list.length ? (100 * done) / list.length : 0, cells)}</Text>
-        <Text> {done}/{list.length} done</Text>
-        {live.length > 0 && <Text dimColor wrap="truncate-end"> · running: {live.map(a => `${a.type}: ${a.desc}`).join(' · ')}</Text>}
-        <Text> </Text>
-        <Button key="panel" label="panel" plain onPress={async () => {
-          try {
-            await $.command.run({ command: 'agents-info', args: '' })
-          } catch {
-            $.ui.toast('usage-bar: the agents panel needs the savvy-progress mod.')
-          }
-        }} />
-      </Box>
-    )
+    // Desktop: one graphical card (gauges, cost, agents) with tooltips.
+    if (e.surface === 'desktop' && 'Svg' in ui) {
+      const { Svg } = ui as typeof ui & { Svg: (p: { source: string; alt: string; isInteractive?: boolean }) => unknown }
+      return (
+        <Box flexDirection="column">
+          <Svg key="card" source={svgCard(u, list, t)} alt={cardAlt(u, list, t)} isInteractive />
+          {buttons}
+          {details}
+          {below}
+        </Box>
+      )
+    }
 
+    // Terminal: a rounded panel of labelled meters at eighth-cell resolution.
+    const cells = (e.props.bodyColumns ?? 100) >= 110 ? 24 : 14
+    const meter = (key: string, label: string, pct: number, right: string) => {
+      const b = smoothBar(pct, cells)
+      return (
+        <Box key={key}>
+          <Text bold>{pad(label, 9)}</Text>
+          <Text color={pctColor(pct)}>{b.fill}</Text>
+          <Text dimColor>{b.track}</Text>
+          <Text bold color={pctColor(pct)}> {pad(Math.round(pct) + '%', 5)}</Text>
+          <Text dimColor>{right}</Text>
+        </Box>
+      )
+    }
+    const done = list.filter(a => !isLive(a)).length
     return (
       <Box flexDirection="column">
-        {usageRow}
+        <Box key="panel" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
+          <Box key="head" justifyContent="space-between">
+            <Text bold>◆ usage</Text>
+            {u && u.usd !== null && <Text dimColor>session {money(u.usd)}</Text>}
+          </Box>
+          {u && meter('ctx', 'Context', u.ctxPct, `${tokens(u.ctxTokens)} / ${tokens(u.ctxWindow)}`)}
+          {u &&
+            u.limits.map(l =>
+              meter('lim-' + l.kind, limitName(l.kind), l.pct, l.resetsAt ? `resets ${until(l.resetsAt, t)}` : `${Math.max(0, 100 - Math.round(l.pct))}% left`),
+            )}
+          {list.length > 0 && meter('agents', 'Agents', (100 * done) / list.length, `${done}/${list.length} done`)}
+          {list.slice(0, 4).map(a => (
+            <Text key={'ag-' + a.id} wrap="truncate-end" dimColor={!isLive(a)}>
+              {'         '}
+              <Text color={isLive(a) ? 'yellow' : 'green'}>{isLive(a) ? '●' : '✓'}</Text> {a.type} · {a.desc}
+            </Text>
+          ))}
+          {list.length > 4 && <Text dimColor>{'           '}+{list.length - 4} more</Text>}
+          {buttons}
+        </Box>
         {details}
-        {agentRow}
         {below}
       </Box>
     )

@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { bar, pctColor, tokens, until } from '../hooks/format'
+import { bar, pctColor, smoothBar, svgCard, tokens, until } from '../hooks/format'
 
 const BAND = { plugin: 'usage-bar', component: 'AbovePrompt', props: { hasSurvey: false, isWorking: false, bodyColumns: 140 } } as const
 const IN_2H10 = new Date(Date.now() + (2 * 60 + 10) * 60000 + 20000).toISOString()
@@ -22,6 +22,11 @@ test('formatting helpers', () => {
   expect(pctColor(23)).toBe('green')
   expect(pctColor(87.5)).toBe('red')
   expect(until(IN_2H10, Date.now())).toBe('in 2h10m')
+  expect(smoothBar(50, 4)).toEqual({ fill: '██', track: '░░' })
+  expect(smoothBar(56.25, 2).fill).toBe('█▏')
+  const svg = svgCard({ ctxTokens: 1, ctxWindow: 2, ctxPct: 50, limits: [], usd: 1 }, [{ id: 'a', desc: '<x>', type: 'Explore', status: 'running' }], Date.now())
+  expect(svg).toContain('&lt;x&gt;')
+  expect(svg).toContain('<animate')
 })
 
 test('the band draws usage and details, and keeps the band beneath it', async ($, on) => {
@@ -36,7 +41,8 @@ test('the band draws usage and details, and keeps the band beneath it', async ($
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface } as never)
-    expect(await ui.find({ type: 'Text', text: /▰▰▰▰▱▱▱▱▱▱/ })).toBeDefined()
+    if (surface === 'desktop') expect(await ui.find({ type: 'Svg' } as never)).toBeDefined()
+    else expect(await ui.find({ type: 'Text', text: /^5-hour/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /5-hour limit: 23% used, 77% left, resets in 2h10m/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /7-day limit: 88% used, 12% left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band beneath/ })).toBeDefined()
@@ -54,6 +60,6 @@ test('hide leaves only the band beneath', async ($, on) => {
   await $.command.run({ command: 'usage-bar', args: '' } as never)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
   expect(await ui.find({ type: 'Text', text: /band beneath/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /▰/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /usage/ })).toBeUndefined()
   await ui.unmount()
 })
