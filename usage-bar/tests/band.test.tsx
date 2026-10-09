@@ -63,3 +63,19 @@ test('hide leaves only the band beneath', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: /usage/ })).toBeUndefined()
   await ui.unmount()
 })
+
+test('a limit at 90% or more turns into a red warning', async ($, on) => {
+  mock.store(on)
+  on('session.usage', () => ({ value: { ...FAKE, rateLimits: [{ kind: 'five_hour', percentUsed: 93, resetsAt: IN_2H10 }] } }) as never)
+  on('ui.render', { component: 'AbovePrompt' }, ($e, e) => {
+    const { Text } = $e.ui.resolve(e)
+    return <Text>band beneath</Text>
+  })
+  await $.command.run({ command: 'usage-bar', args: 'details' } as never)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...BAND, surface } as never)
+    expect(await ui.find({ type: 'Text', text: /⚠ 5h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /^ctx/ })).toBeDefined()
+    await ui.unmount()
+  }
+})

@@ -10,6 +10,8 @@ const view = atom({ plugin: 'usage-bar', key: 'view' } as const, { isExpanded: f
 const now = atom({ plugin: 'usage-bar', key: 'now' } as const, 0)
 
 const LIVE = new Set(['pending', 'running', 'waiting'])
+// From here a limit is a warning: bold red label and a one-time toast.
+const WARN_AT = 90
 
 const snapshotOf = (u: SessionUsage): UsageSnapshot => ({
   ctxTokens: u.context.tokens ?? 0,
@@ -29,6 +31,14 @@ const rowsOf = (list: AgentInfo[], before: Set<string>): AgentRow[] =>
 export const register: Register = on => {
   let before = new Set<string>()
   let isTurnRunning = false
+  const warned = new Set<string>()
+  const warnText = (u: UsageSnapshot, at: number) =>
+    u.limits
+      .filter(l => l.pct >= WARN_AT && !warned.has(l.kind + (l.resetsAt ?? '')))
+      .map(l => {
+        warned.add(l.kind + (l.resetsAt ?? ''))
+        return `${limitLong(l.kind)} at ${Math.round(l.pct)}%${l.resetsAt ? ', resets ' + until(l.resetsAt, at) : ''}`
+      })
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'usage-bar', description: 'Show or hide the usage band; "/usage-bar details" expands it.' })
@@ -79,8 +89,10 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       try {
         const u = await $.session.usage()
-        await update($, usage, () => snapshotOf(u))
+        const snap = snapshotOf(u)
+        await update($, usage, () => snap)
         await update($, now, () => Date.now())
+        for (const w of warnText(snap, Date.now())) $.ui.toast('⚠ ' + w, { timeoutMs: 10000 })
       } catch {}
     }
     return res
@@ -126,7 +138,6 @@ export const register: Register = on => {
 
     const buttons = (
       <Box key="buttons">
-        <Text>     </Text>
         <Button key="details" label={v.isExpanded ? 'less' : 'more'} plain onPress={toggleDetails} />
         {list.length > 0 && <Text>  </Text>}
         {list.length > 0 && <Button key="panel" label="agents" plain onPress={openPanel} />}
@@ -151,32 +162,41 @@ export const register: Register = on => {
     )
 
     // One line of short smooth bars, drawn with the surface's own text (terminal and desktop alike).
-    // Each bar is one glyph repeated, coloured where used and dimmed for the rest,
-    // so it stays one even line in proportional fonts (desktop) and in the terminal.
+    // Each bar is two solid blocks (fill and track) drawn with the box's own
+    // background: a real bar on desktop and in the terminal, in any font.
     const CELLS = 10
-    const mini = (key: string, label: string, pct: number, tail: string, isLast: boolean) => {
+    const TRACK = '#3d444d'
+    const mini = (key: string, label: string, pct: number, tail: string) => {
       const used = Math.max(0, Math.min(CELLS, Math.round((CELLS * pct) / 100)))
+      const isWarn = pct >= WARN_AT
       return (
-        <Text key={key}>
-          <Text dimColor>{label} </Text>
-          <Text color={pctColor(pct)}>{'━'.repeat(used)}</Text>
-          <Text dimColor>{'━'.repeat(CELLS - used)}</Text>
-          <Text bold color={pctColor(pct)}> {Math.round(pct)}%</Text>
-          {tail ? <Text dimColor> {tail}</Text> : null}
-          {isLast ? null : <Text dimColor>   ·   </Text>}
-        </Text>
+        <Box key={key} flexShrink={0} alignItems="center" marginRight={3}>
+          <Text bold={isWarn} color={isWarn ? 'red' : undefined} dimColor={!isWarn} wrap="truncate-end">
+            {isWarn ? '⚠ ' : ''}{label}{' '}
+          </Text>
+          <Box key="bar" flexShrink={0} width={CELLS} height={1}>
+            {used > 0 && <Box key="fill" width={used} height={1} backgroundColor={pctColor(pct)} />}
+            {used < CELLS && <Box key="track" width={CELLS - used} height={1} backgroundColor={TRACK} />}
+          </Box>
+          <Text bold color={pctColor(pct)} wrap="truncate-end"> {Math.round(pct)}%</Text>
+          {tail ? <Text dimColor wrap="truncate-end"> {tail}</Text> : null}
+        </Box>
       )
     }
     const done = list.filter(a => !isLive(a)).length
     return (
       <Box flexDirection="column">
-        <Box key="line">
-          {u && mini('ctx', 'ctx', u.ctxPct, tokens(u.ctxTokens), false)}
+        <Box key="line" flexWrap="nowrap" alignItems="center">
+          {u && mini('ctx', 'ctx', u.ctxPct, tokens(u.ctxTokens))}
           {u &&
             u.limits.slice(0, 2).map(l =>
-              mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻ ' + until(l.resetsAt, t).replace('in ', '') : '', false),
+              mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻' + until(l.resetsAt, t).replace('in ', '') : ''),
             )}
-          {u && u.usd !== null && <Text dimColor>{money(u.usd)}{list.length > 0 ? '   ·   ' : ''}</Text>}
+          {u && u.usd !== null && (
+            <Box key="cost" flexShrink={0} marginRight={3}>
+              <Text dimColor>{money(u.usd)}</Text>
+            </Box>
+          )}
           {list.length > 0 && (
             <Text>
               <Text dimColor>agents </Text>
