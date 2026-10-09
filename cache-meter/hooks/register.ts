@@ -55,7 +55,7 @@ export const register: Register = on => {
     const left = Math.max(0, TTL_MS - (now - mainAt))
     const ttl = left === 0 ? 'cache cold' : `TTL ${Math.ceil(left / 60000)}m`
     const rb = rebuilds.length ? ` · tax ${usd(tax())} (${rebuilds.length} rebuild${rebuilds.length > 1 ? 's' : ''})` : ''
-    return `cache ${hitRate()}% · ctx ${k(mainContext)} · ${ttl}${rb}`
+    return `cache ${hitRate()}% · ${ttl}${rb}`
   }
 
   on('session.start', async ($, e, next) => {
