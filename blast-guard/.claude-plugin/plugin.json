@@ -1,0 +1,5 @@
+{
+  "name": "blast-guard",
+  "version": "0.1.0",
+  "description": "Holds risky shell commands for a yes/no with a dry-run report, blocks Python heredocs carrying backslash escapes, and caps concurrent subagents at 4."
+}
