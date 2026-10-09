@@ -25,7 +25,6 @@ const rowsOf = (list: AgentInfo[], before: Set<string>): AgentRow[] =>
     .filter(a => a.type !== 'teammate' && (LIVE.has(a.status) || !before.has(a.id)))
     .map(a => ({ id: a.id, desc: a.description, type: a.type, status: a.status }))
 
-const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 
 export const register: Register = on => {
   let before = new Set<string>()
@@ -128,11 +127,12 @@ export const register: Register = on => {
 
     const buttons = (
       <Box key="buttons">
-        <Button key="details" label={v.isExpanded ? 'less' : 'details'} plain onPress={toggleDetails} />
-        <Text>  </Text>
-        {list.length > 0 && <Button key="panel" label="agents panel" plain onPress={openPanel} />}
+        <Text> </Text>
+        <Button key="details" label={v.isExpanded ? 'less' : 'more'} plain onPress={toggleDetails} />
         {list.length > 0 && <Text>  </Text>}
-        <Button key="hide" label="hide" plain onPress={hide} />
+        {list.length > 0 && <Button key="panel" label="agents" plain onPress={openPanel} />}
+        <Text>  </Text>
+        <Button key="hide" label="×" plain onPress={hide} />
       </Box>
     )
 
@@ -151,54 +151,54 @@ export const register: Register = on => {
       </Box>
     )
 
-    // Desktop: one graphical card (gauges, cost, agents) with tooltips.
+    // Desktop: one slim strip with tooltips, buttons beside it.
     if (e.surface === 'desktop' && 'Svg' in ui) {
       const { Svg } = ui as typeof ui & { Svg: (p: { source: string; alt: string; isInteractive?: boolean }) => unknown }
       return (
         <Box flexDirection="column">
-          <Svg key="card" source={svgCard(u, list, t)} alt={cardAlt(u, list, t)} isInteractive />
-          {buttons}
+          <Box key="strip" alignItems="center">
+            <Svg key="card" source={svgCard(u, list, t)} alt={cardAlt(u, list, t)} isInteractive />
+            {buttons}
+          </Box>
           {details}
           {below}
         </Box>
       )
     }
 
-    // Terminal: a rounded panel of labelled meters at eighth-cell resolution.
-    const cells = (e.props.bodyColumns ?? 100) >= 110 ? 24 : 14
-    const meter = (key: string, label: string, pct: number, right: string) => {
-      const b = smoothBar(pct, cells)
+    // Terminal: one line of short smooth bars; agents as dots.
+    const mini = (key: string, label: string, pct: number, tail: string) => {
+      const b = smoothBar(pct, 8)
       return (
-        <Box key={key}>
-          <Text bold>{pad(label, 9)}</Text>
+        <Text key={key}>
+          <Text dimColor>{label} </Text>
           <Text color={pctColor(pct)}>{b.fill}</Text>
           <Text dimColor>{b.track}</Text>
-          <Text bold color={pctColor(pct)}> {pad(Math.round(pct) + '%', 5)}</Text>
-          <Text dimColor>{right}</Text>
-        </Box>
+          <Text bold color={pctColor(pct)}> {Math.round(pct)}%</Text>
+          {tail ? <Text dimColor> {tail}</Text> : null}
+          <Text>   </Text>
+        </Text>
       )
     }
     const done = list.filter(a => !isLive(a)).length
     return (
       <Box flexDirection="column">
-        <Box key="panel" flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
-          <Box key="head" justifyContent="space-between">
-            <Text bold>◆ usage</Text>
-            {u && u.usd !== null && <Text dimColor>session {money(u.usd)}</Text>}
-          </Box>
-          {u && meter('ctx', 'Context', u.ctxPct, `${tokens(u.ctxTokens)} / ${tokens(u.ctxWindow)}`)}
+        <Box key="line">
+          {u && mini('ctx', 'ctx', u.ctxPct, tokens(u.ctxTokens))}
           {u &&
-            u.limits.map(l =>
-              meter('lim-' + l.kind, limitName(l.kind), l.pct, l.resetsAt ? `resets ${until(l.resetsAt, t)}` : `${Math.max(0, 100 - Math.round(l.pct))}% left`),
+            u.limits.slice(0, 2).map(l =>
+              mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻' + until(l.resetsAt, t).replace('in ', '') : ''),
             )}
-          {list.length > 0 && meter('agents', 'Agents', (100 * done) / list.length, `${done}/${list.length} done`)}
-          {list.slice(0, 4).map(a => (
-            <Text key={'ag-' + a.id} wrap="truncate-end" dimColor={!isLive(a)}>
-              {'         '}
-              <Text color={isLive(a) ? 'yellow' : 'green'}>{isLive(a) ? '●' : '✓'}</Text> {a.type} · {a.desc}
+          {u && u.usd !== null && <Text dimColor>{money(u.usd)}   </Text>}
+          {list.length > 0 && (
+            <Text>
+              <Text dimColor>agents </Text>
+              {list.slice(0, 8).map(a => (
+                <Text key={'dot-' + a.id} color={isLive(a) ? 'yellow' : 'green'}>{isLive(a) ? '●' : '✓'}</Text>
+              ))}
+              <Text dimColor> {done}/{list.length}</Text>
             </Text>
-          ))}
-          {list.length > 4 && <Text dimColor>{'           '}+{list.length - 4} more</Text>}
+          )}
           {buttons}
         </Box>
         {details}

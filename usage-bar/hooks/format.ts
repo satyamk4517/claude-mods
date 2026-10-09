@@ -52,71 +52,55 @@ export const money = (usd: number) => '$' + usd.toFixed(2)
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 
-// One ring gauge: track, coloured arc from 12 o'clock, percent in the middle.
-const ring = (cx: number, pct: number, label: string, sub: string, tip: string) => {
-  const r = 26
-  const c = 2 * Math.PI * r
-  const len = (Math.max(0, Math.min(100, pct)) / 100) * c
-  return `<g><title>${esc(tip)}</title>
-  <circle cx="${cx}" cy="40" r="${r}" fill="none" stroke-width="7" class="track"/>
-  <circle cx="${cx}" cy="40" r="${r}" fill="none" stroke-width="7" stroke="${pctHex(pct)}" stroke-linecap="round"
-    stroke-dasharray="${len.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${cx} 40)"/>
-  <text x="${cx}" y="45" text-anchor="middle" class="fg big">${Math.round(pct)}%</text>
-  <text x="${cx}" y="84" text-anchor="middle" class="fg lab">${esc(label)}</text>
-  <text x="${cx}" y="99" text-anchor="middle" class="mute sm">${esc(sub)}</text></g>`
-}
-
-// The desktop card: three gauges, then cost and the agents.
+// The desktop strip: one 30px row of labelled mini bars, cost and agent dots.
 export const svgCard = (u: Usage | null, agents: Agent[], now: number) => {
-  const W = 760
-  const H = 112
-  const gauges: string[] = []
+  const H = 30
+  const parts: string[] = []
+  let x = 10
+  const seg = (label: string, pct: number, tail: string, tip: string) => {
+    const bw = 64
+    const fill = (Math.max(0, Math.min(100, pct)) / 100) * bw
+    parts.push(`<g><title>${esc(tip)}</title>
+  <text x="${x}" y="19" class="mute sm">${esc(label)}</text>
+  <rect x="${x + 44}" y="11" width="${bw}" height="8" rx="4" class="trackfill"/>
+  <rect x="${x + 44}" y="11" width="${fill.toFixed(1)}" height="8" rx="4" fill="${pctHex(pct)}"/>
+  <text x="${x + 50 + bw}" y="19" class="fg b">${Math.round(pct)}%</text>
+  ${tail ? `<text x="${x + 84 + bw}" y="19" class="mute sm">${esc(tail)}</text>` : ''}</g>`)
+    x += 84 + bw + (tail ? tail.length * 6 + 14 : 4)
+  }
   if (u) {
-    gauges.push(
-      ring(52, u.ctxPct, 'Context', `${tokens(u.ctxTokens)} / ${tokens(u.ctxWindow)}`,
-        `Context: ${u.ctxTokens.toLocaleString()} of ${u.ctxWindow.toLocaleString()} tokens, ${tokens(Math.max(0, u.ctxWindow - u.ctxTokens))} left`),
-    )
-    u.limits.slice(0, 2).forEach((l, i) => {
+    seg('ctx', u.ctxPct, tokens(u.ctxTokens), `Context: ${u.ctxTokens.toLocaleString()} of ${u.ctxWindow.toLocaleString()} tokens, ${tokens(Math.max(0, u.ctxWindow - u.ctxTokens))} left`)
+    for (const l of u.limits.slice(0, 2)) {
       const left = Math.max(0, 100 - Math.round(l.pct))
       const when = until(l.resetsAt, now)
-      gauges.push(
-        ring(52 + 118 * (i + 1), l.pct, limitName(l.kind), when ? `resets ${when}` : `${left}% left`,
-          `${limitLong(l.kind)}: ${Math.round(l.pct)}% used, ${left}% left${when ? ', resets ' + when : ''}`),
-      )
-    })
-  }
-  const x0 = u ? 52 + 118 * (1 + Math.min(2, u.limits.length)) - 20 : 16
-  const side: string[] = []
-  if (u && u.usd !== null) {
-    side.push(`<g><title>Session cost as /cost totals it (API-equivalent on a subscription)</title>
-      <text x="${x0}" y="26" class="mute sm">SESSION</text>
-      <text x="${x0}" y="50" class="fg cost">${money(u.usd)}</text></g>`)
+      seg(l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, when ? '↻' + when.replace('in ', '') : '',
+        `${limitLong(l.kind)}: ${Math.round(l.pct)}% used, ${left}% left${when ? ', resets ' + when : ''}`)
+    }
+    if (u.usd !== null) {
+      parts.push(`<g><title>Session cost as /cost totals it (API-equivalent on a subscription)</title><text x="${x}" y="19" class="fg b">${money(u.usd)}</text></g>`)
+      x += 58
+    }
   }
   if (agents.length) {
     const done = agents.filter(a => !isLive(a)).length
-    const ax = x0 + (u && u.usd !== null ? 120 : 0)
-    const bw = W - ax - 16
-    side.push(`<text x="${ax}" y="26" class="mute sm">AGENTS  ${done}/${agents.length} done</text>
-      <rect x="${ax}" y="33" width="${bw}" height="6" rx="3" class="trackfill"/>
-      <rect x="${ax}" y="33" width="${((bw * done) / agents.length).toFixed(1)}" height="6" rx="3" fill="${done === agents.length ? HEX.green : HEX.yellow}"/>`)
-    agents.slice(0, 4).forEach((a, i) => {
-      const y = 56 + i * 15
+    parts.push(`<text x="${x}" y="19" class="mute sm">agents ${done}/${agents.length}</text>`)
+    x += 66
+    agents.slice(0, 8).forEach(a => {
       const live = isLive(a)
-      side.push(`<g><title>${esc(`${a.type}: ${a.desc} (${a.status})`)}</title>
-        <circle cx="${ax + 5}" cy="${y - 4}" r="4" fill="${live ? HEX.yellow : HEX.green}">${live ? '<animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite"/>' : ''}</circle>
-        <text x="${ax + 15}" y="${y}" class="${live ? 'fg' : 'mute'} sm">${live ? '' : '✓ '}${esc(clip(`${a.type} · ${a.desc}`, 46))}</text></g>`)
+      parts.push(`<g><title>${esc(`${a.type}: ${a.desc} (${a.status})`)}</title><circle cx="${x}" cy="15" r="4" fill="${live ? HEX.yellow : HEX.green}">${live ? '<animate attributeName="opacity" values="1;0.25;1" dur="1.4s" repeatCount="indefinite"/>' : ''}</circle></g>`)
+      x += 12
     })
-    if (agents.length > 4) side.push(`<text x="${ax + 15}" y="${56 + 4 * 15}" class="mute sm">+${agents.length - 4} more</text>`)
+    x += 6
   }
+  const W = Math.max(120, Math.ceil(x))
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="Segoe UI, system-ui, sans-serif">
 <style>
-  .panel{fill:#f6f8fa;stroke:#d0d7de} .fg{fill:#1f2328} .mute{fill:#656d76} .track{stroke:#d0d7de} .trackfill{fill:#d0d7de}
-  .big{font-size:15px;font-weight:600} .lab{font-size:12px;font-weight:600} .sm{font-size:11px;letter-spacing:.2px} .cost{font-size:22px;font-weight:600}
-  @media (prefers-color-scheme: dark){ .panel{fill:#161b22;stroke:#30363d} .fg{fill:#e6edf3} .mute{fill:#8b949e} .track{stroke:#30363d} .trackfill{fill:#30363d} }
+  .panel{fill:#f6f8fa;stroke:#d0d7de} .fg{fill:#1f2328} .mute{fill:#656d76} .trackfill{fill:#d0d7de}
+  .b{font-size:12px;font-weight:600} .sm{font-size:11px}
+  @media (prefers-color-scheme: dark){ .panel{fill:#161b22;stroke:#30363d} .fg{fill:#e6edf3} .mute{fill:#8b949e} .trackfill{fill:#30363d} }
 </style>
-<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="10" class="panel"/>
-${gauges.join('\n')}
-${side.join('\n')}
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="8" class="panel"/>
+${parts.join('\n')}
 </svg>`
 }
 
