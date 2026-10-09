@@ -41,8 +41,8 @@ test('the band draws usage and details, and keeps the band beneath it', async ($
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface } as never)
-    if (surface === 'desktop') expect(await ui.find({ type: 'Svg' } as never)).toBeDefined()
-    else expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
+    expect(await ui.find({ type: 'Svg' } as never)).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /5-hour limit: 23% used, 77% left, resets in 2h10m/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /7-day limit: 88% used, 12% left/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /band beneath/ })).toBeDefined()

@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { AgentInfo, Register, SessionUsage } from 'claude-code'
 
 import type { AgentRow, UsageSnapshot, View } from '../types'
-import { cardAlt, isLive, limitLong, limitName, money, pctColor, smoothBar, svgCard, tokens, until } from './format'
+import { isLive, limitLong, limitName, money, pctColor, smoothBar, tokens, until } from './format'
 
 const usage = atom({ plugin: 'usage-bar', key: 'usage' } as const, null)
 const agents = atom({ plugin: 'usage-bar', key: 'agents' } as const, [])
@@ -105,8 +105,7 @@ export const register: Register = on => {
     if (e.props.hasSurvey || v.isHidden || (u === null && list.length === 0)) return next(e)
 
     const below = await next(e)
-    const ui = $.ui.resolve(e)
-    const { Box, Text, Button } = ui
+    const { Box, Text, Button } = $.ui.resolve(e)
     const t = (await read($, now)) || Date.now()
 
     const toggleDetails = async () => {
@@ -151,22 +150,7 @@ export const register: Register = on => {
       </Box>
     )
 
-    // Desktop: one slim strip with tooltips, buttons beside it.
-    if (e.surface === 'desktop' && 'Svg' in ui) {
-      const { Svg } = ui as typeof ui & { Svg: (p: { source: string; alt: string; isInteractive?: boolean }) => unknown }
-      return (
-        <Box flexDirection="column">
-          <Box key="strip" alignItems="center">
-            <Svg key="card" source={svgCard(u, list, t)} alt={cardAlt(u, list, t)} isInteractive />
-            {buttons}
-          </Box>
-          {details}
-          {below}
-        </Box>
-      )
-    }
-
-    // Terminal: one line of short smooth bars; agents as dots.
+    // One line of short smooth bars, drawn with the surface's own text (terminal and desktop alike).
     const mini = (key: string, label: string, pct: number, tail: string) => {
       const b = smoothBar(pct, 8)
       return (
@@ -176,7 +160,7 @@ export const register: Register = on => {
           <Text dimColor>{b.track}</Text>
           <Text bold color={pctColor(pct)}> {Math.round(pct)}%</Text>
           {tail ? <Text dimColor> {tail}</Text> : null}
-          <Text>   </Text>
+          <Text dimColor>  │  </Text>
         </Text>
       )
     }
@@ -189,7 +173,7 @@ export const register: Register = on => {
             u.limits.slice(0, 2).map(l =>
               mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻' + until(l.resetsAt, t).replace('in ', '') : ''),
             )}
-          {u && u.usd !== null && <Text dimColor>{money(u.usd)}   </Text>}
+          {u && u.usd !== null && <Text dimColor>{money(u.usd)}{list.length > 0 ? '  │  ' : ''}</Text>}
           {list.length > 0 && (
             <Text>
               <Text dimColor>agents </Text>
