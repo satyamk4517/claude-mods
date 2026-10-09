@@ -13,6 +13,11 @@
       "name": "cache-meter",
       "source": "./cache-meter",
       "description": "Prompt-cache hit rate, context size and TTL in the status line; prices every cache rebuild; /cache-meter summary."
+    },
+    {
+      "name": "usage-bar",
+      "source": "./usage-bar",
+      "description": "Interactive band above the prompt: context fill, 5-hour and 7-day plan limits with resets, session cost, and a progress row for any subagents."
     }
   ]
 }

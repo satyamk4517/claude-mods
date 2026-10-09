@@ -1,0 +1,6 @@
+{
+  "name": "usage-bar",
+  "version": "0.1.0",
+  "description": "Interactive band above the prompt: context fill, 5-hour and 7-day plan limits with resets, session cost, and a progress row for any subagents.",
+  "types": "./types/index.d.ts"
+}
