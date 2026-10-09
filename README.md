@@ -12,8 +12,8 @@ Two [Claude Code mods](https://code.claude.com/docs/en/plugins/mods) — plugins
 In a Claude Code terminal session:
 
 ```
-/plugin install blast-guard --marketplace <owner>/<repo>
-/plugin install cache-tax --marketplace <owner>/<repo>
+/plugin install blast-guard --marketplace satyamk4517/claude-mods
+/plugin install cache-tax --marketplace satyamk4517/claude-mods
 ```
 
 Answer `y` to add the marketplace, then pick a scope (user = every project).
