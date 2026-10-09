@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { AgentInfo, Register, SessionUsage } from 'claude-code'
 
 import type { AgentRow, UsageSnapshot, View } from '../types'
-import { isLive, limitLong, limitName, money, pctColor, smoothBar, tokens, until } from './format'
+import { isLive, limitLong, limitName, money, pctColor, tokens, until } from './format'
 
 const usage = atom({ plugin: 'usage-bar', key: 'usage' } as const, null)
 const agents = atom({ plugin: 'usage-bar', key: 'agents' } as const, [])
@@ -126,7 +126,7 @@ export const register: Register = on => {
 
     const buttons = (
       <Box key="buttons">
-        <Text> </Text>
+        <Text>     </Text>
         <Button key="details" label={v.isExpanded ? 'less' : 'more'} plain onPress={toggleDetails} />
         {list.length > 0 && <Text>  </Text>}
         {list.length > 0 && <Button key="panel" label="agents" plain onPress={openPanel} />}
@@ -151,16 +151,19 @@ export const register: Register = on => {
     )
 
     // One line of short smooth bars, drawn with the surface's own text (terminal and desktop alike).
-    const mini = (key: string, label: string, pct: number, tail: string) => {
-      const b = smoothBar(pct, 8)
+    // Each bar is one glyph repeated, coloured where used and dimmed for the rest,
+    // so it stays one even line in proportional fonts (desktop) and in the terminal.
+    const CELLS = 10
+    const mini = (key: string, label: string, pct: number, tail: string, isLast: boolean) => {
+      const used = Math.max(0, Math.min(CELLS, Math.round((CELLS * pct) / 100)))
       return (
         <Text key={key}>
           <Text dimColor>{label} </Text>
-          <Text color={pctColor(pct)}>{b.fill}</Text>
-          <Text dimColor>{b.track}</Text>
+          <Text color={pctColor(pct)}>{'━'.repeat(used)}</Text>
+          <Text dimColor>{'━'.repeat(CELLS - used)}</Text>
           <Text bold color={pctColor(pct)}> {Math.round(pct)}%</Text>
           {tail ? <Text dimColor> {tail}</Text> : null}
-          <Text dimColor>  │  </Text>
+          {isLast ? null : <Text dimColor>   ·   </Text>}
         </Text>
       )
     }
@@ -168,12 +171,12 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box key="line">
-          {u && mini('ctx', 'ctx', u.ctxPct, tokens(u.ctxTokens))}
+          {u && mini('ctx', 'ctx', u.ctxPct, tokens(u.ctxTokens), false)}
           {u &&
             u.limits.slice(0, 2).map(l =>
-              mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻' + until(l.resetsAt, t).replace('in ', '') : ''),
+              mini('lim-' + l.kind, l.kind === 'five_hour' ? '5h' : l.kind === 'seven_day' ? '7d' : limitName(l.kind), l.pct, l.resetsAt ? '↻ ' + until(l.resetsAt, t).replace('in ', '') : '', false),
             )}
-          {u && u.usd !== null && <Text dimColor>{money(u.usd)}{list.length > 0 ? '  │  ' : ''}</Text>}
+          {u && u.usd !== null && <Text dimColor>{money(u.usd)}{list.length > 0 ? '   ·   ' : ''}</Text>}
           {list.length > 0 && (
             <Text>
               <Text dimColor>agents </Text>
